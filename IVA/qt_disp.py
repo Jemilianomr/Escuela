@@ -6,10 +6,28 @@ This is a temporary script file.
 """
 
 
-from PyQt5.QtWidgets import QApplication, QPushButton, QMainWindow 
-from PyQt5.QtCore import QSize, Qt 
+from PyQt5.QtWidgets import (
+    QApplication, 
+    QPushButton, 
+    QMainWindow,
+    QVBoxLayout,
+    QGridLayout,
+    QLabel,
+    QWidget,
+    QSpinBox,
+    QComboBox,
+    QMessageBox,
+    QFileDialog
+    )
+from PyQt5.QtCore import Qt, QTimer
 import sys
-from random import choice 
+import matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
+import serial
+import numpy as np
+import glob
 
 window_titles = [
     "MyApp",
