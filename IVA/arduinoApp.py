@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Spyder Editor
+Created on Sun Nov  21 14:43:04 2021
 
-This is a temporary script file.
+@author: Josue Emiliano Montero Rasgado
 """
 
-
+# Paquetes
 from PyQt5.QtWidgets import (
     QApplication, 
     QPushButton, 
@@ -28,7 +28,9 @@ from matplotlib.figure import Figure
 import serial
 import numpy as np
 import glob
+import time
 
+# CLase del lienzo para graficar
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent = None, width = 5, height = 4, dpi = 100):
         fig = Figure(figsize=(width, height), dpi = dpi)
@@ -37,7 +39,9 @@ class MplCanvas(FigureCanvasQTAgg):
         self.axes.set_ylabel("Voltage (V)")
         super(MplCanvas, self).__init__(fig)
 
+# Clase de la ventana principal
 class MainWindow(QMainWindow):
+    # Constructor
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SPM PyQt5 and Arduino")
@@ -73,36 +77,37 @@ class MainWindow(QMainWindow):
         self.btn_stop.clicked.connect(self.stop_acquisition)
         control_layout.addWidget(self.btn_stop, 1, 3)
         
-        self.btn_save = QPushButton("Save")
-        self.btn_save.clicked.connect(self.save_file)
-        control_layout.addWidget(self.btn_save, 1, 4)
-        
         main_layout.addLayout(control_layout)
         widget = QWidget()
         widget.setLayout(main_layout)
         self.setCentralWidget(widget)
         self.btn_start.show()
         self.btn_stop.hide()
-        self.btn_save.hide()
         self.count = 0
         self.micro_board = None
         self.logic_value = 5.0
         self.board_resolution = 1023
-        
-    def save_file(self):
-        print("Save")
-        pass
     
+    # Funcion de paro
     def stop_acquisition(self):
         print("Stop")
-        pass
+        self.btn_stop.hide()
+        self.stp_acq = True
+        self.btn_start.show()
     
+    # Funcion de inicio
     def start_acquisition(self):
         print("Start")
+        self.canvas.axes.clear()
         self.stp_acq = False
+        self.value1 = 0
+        self.value2 = 0
         try:
             self.micro_board = serial.Serial(str(self.com_port), 9600,
-                                             timeout = 2)
+                                             timeout = 1)
+            time.sleep(1)
+            print("Conexión lista")
+            self.micro_board.reset_input_buffer()
         except:
             dig_board = QMessageBox()
             dig_board.setWindowTitle("COM Port Error!")
@@ -117,38 +122,67 @@ class MainWindow(QMainWindow):
         if (self.com_port != "" and self.micro_board != None):
             self.btn_start.hide()
             self.btn_stop.show()
-            self.btn_save.hide()
             if (self.count == 0):
                 self.time_val = 0
                 self.values = []
-                self.x = np.asarray([])
-                self.y = np.asarray([])
+                self.t = np.asarray([])
+                self.v1 = np.asarray([])
+                self.v2 = np.asarray([])
                 if (self.micro_board != None):
-                    self.micro_bard.reset_input_buffer()
+                    self.micro_board.reset_input_buffer()
                 self.timer = QTimer()
                 self.timer.setInterval(500)
                 self.timer.timeout.connect(self.update_plot)
                 self.timer.start()
                 print()
                 print("Time (s) \t Voltage (V)")
-                
+    
+    # Funcion de generacion del grafico
     def update_plot(self):
-        print(self.count)
-        if (self.count == 20):
+        try:
+            temp = str(self.micro_board.readline().decode('cp437'))
+            temp = temp.replace("\n", "")
+            temp1 = temp.split(",")
+            value1 = (float(temp1[0])*(self.logic_value/self.board_resolution))
+            value2 = (float(temp1[1])*(self.logic_value/self.board_resolution))
+            print_console = "voltage: " + "{0:.3f}".format(value1) + " (V)"
+            print_console += "voltage: " + "{0:.3f}".format(value2) + " (V)"
+            print(print_console)
+            self.values.append(str(self.count) + "," + 
+                               "{0:.3f}".format(value1) + "," + 
+                               "{0:.3f}".format(value2))
+            self.t = np.append(self.t, self.count)
+            self.v1 = np.append(self.v1, value1)
+            self.v2 = np.append(self.v2, value2)
+
+            self.canvas.axes.clear()
+            self.canvas.axes.plot(self.t, self.v1, 'C1o--')
+            self.canvas.axes.plot(self.t, self.v2, 'b-s')
+            self.canvas.axes.grid(True)
+            self.canvas.draw()
+
+        except:
+            pass
+        
+        if (self.count == self.samples or self.stp_acq == True):
             self.count = 0
             self.btn_stop.hide()
             self.btn_start.show()
             self.micro_board.close()
-            self.time.stop()
+            self.timer.stop()
         self.count = self.count + 1
-        
+    
+    # Funcion para el numero de muestras    
     def spb_samples_changed(self, val_samples):
         self.samples = val_samples
-        
+        print(self.samples)
+    
+    # Funcion de cambio de puerto    
     def add_port(self):
         self.com_port = str(self.cb_port.currentText())
         print(self.com_port)
         
+    # Funcion de conexion serial    
     def serial_ports(self) -> list:
         if(sys.platform.startswith('win')):
             ports = ['COM%s' % (i+1) for i in range(256)]
@@ -173,5 +207,4 @@ if(__name__ == "__main__"):
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    
     app.exec_()        
